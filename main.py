@@ -1,4 +1,5 @@
 import sys
+import argparse
 from datetime import datetime
 from tqdm import tqdm
 from gdc_api_client import GDCApiClient
@@ -8,30 +9,84 @@ from utils import setup_logging, save_progress, load_progress
 from config import PRIMARY_SITE, OUTPUT_DIR, TOP_N_GENES, MIN_AFFECTED_PERCENTAGE
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Download mutation data from GDC Data Portal",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Download breast cancer data (default)
+  python main.py
+
+  # Download lung cancer data
+  python main.py --primary-site "Lung"
+
+  # Download with custom output directory
+  python main.py --primary-site "Lung" --output-dir "Lung Cancer Data"
+
+  # Download prostate cancer with top 50 genes
+  python main.py --primary-site "Prostate" --top-genes 50
+
+Available primary sites include:
+  Breast, Lung, Prostate, Colon, Brain, Kidney, Liver, Pancreas,
+  Ovary, Stomach, Skin, Bladder, Uterus, etc.
+  (See https://portal.gdc.cancer.gov/ for full list)
+        """
+    )
+    parser.add_argument(
+        "--primary-site",
+        default=PRIMARY_SITE,
+        help=f"Primary site to query (default: {PRIMARY_SITE})"
+    )
+    parser.add_argument(
+        "--output-dir",
+        default=None,
+        help="Output directory (default: '<Primary Site> Cancer')"
+    )
+    parser.add_argument(
+        "--top-genes",
+        type=int,
+        default=TOP_N_GENES,
+        help=f"Number of top genes to download (default: {TOP_N_GENES})"
+    )
+    parser.add_argument(
+        "--min-affected-pct",
+        type=float,
+        default=MIN_AFFECTED_PERCENTAGE,
+        help=f"Minimum affected percentage (default: {MIN_AFFECTED_PERCENTAGE})"
+    )
+
+    args = parser.parse_args()
+
+    primary_site = args.primary_site
+    output_dir = args.output_dir if args.output_dir else f"{primary_site} Cancer"
+    top_n_genes = args.top_genes
+    min_affected_pct = args.min_affected_pct
+
     logger = setup_logging()
     logger.info("=" * 60)
     logger.info("GDC Mutation Data Downloader")
     logger.info("=" * 60)
 
     api_client = GDCApiClient()
-    file_manager = FileManager(OUTPUT_DIR)
+    file_manager = FileManager(output_dir)
 
     try:
         completed_genes = load_progress()
         logger.info(f"Loaded progress: {len(completed_genes)} genes already completed")
 
-        logger.info(f"Target: Primary site '{PRIMARY_SITE}'")
-        logger.info(f"Top genes: {TOP_N_GENES}")
-        logger.info(f"Min affected percentage: {MIN_AFFECTED_PERCENTAGE}%")
+        logger.info(f"Target: Primary site '{primary_site}'")
+        logger.info(f"Top genes: {top_n_genes}")
+        logger.info(f"Min affected percentage: {min_affected_pct}%")
+        logger.info(f"Output directory: {output_dir}")
         logger.info("")
 
         # Get Open Access MAF cohort (matches GDC Portal Mutation Frequency app)
-        cohort_case_ids = api_client.get_open_access_maf_cohort_cases(PRIMARY_SITE)
+        cohort_case_ids = api_client.get_open_access_maf_cohort_cases(primary_site)
         total_cohort_cases = len(cohort_case_ids)
         logger.info("")
 
         logger.info(f"Fetching all genes with mutations in cohort...")
-        all_genes = api_client.get_all_mutated_genes_in_cohort(PRIMARY_SITE)
+        all_genes = api_client.get_all_mutated_genes_in_cohort(primary_site)
         logger.info(f"Retrieved {len(all_genes)} genes from aggregation")
         logger.info("")
 
@@ -56,7 +111,7 @@ def main():
             gene_id = gene_data["gene_id"]
 
             # Get unique case count (filtered by Open Access MAF cohort)
-            cohort_gene_cases = api_client.get_gene_case_count(gene_id, PRIMARY_SITE, cohort_case_ids)
+            cohort_gene_cases = api_client.get_gene_case_count(gene_id, primary_site, cohort_case_ids)
             genes_with_counts.append({
                 "symbol": gene_symbol,
                 "gene_id": gene_id,
@@ -64,7 +119,7 @@ def main():
             })
 
         genes_with_counts.sort(key=lambda x: x["cohort_affected_cases"], reverse=True)
-        top_genes = genes_with_counts[:TOP_N_GENES]
+        top_genes = genes_with_counts[:top_n_genes]
 
         logger.info("")
         logger.info(f"Top 10 genes by # SSM Affected Cases in Cohort:")
@@ -91,9 +146,9 @@ def main():
 
             mutations = api_client.get_gene_mutations(
                 gene_id=gene_id,
-                primary_site=PRIMARY_SITE,
+                primary_site=primary_site,
                 total_cases=total_cohort_cases,
-                min_affected_pct=MIN_AFFECTED_PERCENTAGE
+                min_affected_pct=min_affected_pct
             )
 
             if not mutations:
@@ -126,7 +181,7 @@ def main():
 
         logger.info("=" * 60)
         logger.info("Download complete!")
-        logger.info(f"Output file: {OUTPUT_DIR}/{filename}")
+        logger.info(f"Output file: {output_dir}/{filename}")
         logger.info("=" * 60)
 
     except KeyboardInterrupt:

@@ -48,34 +48,92 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-## Configuration
-
-Edit `config.py` to customize settings:
-
-```python
-PRIMARY_SITE = "Breast"              # Target primary site
-TOP_N_GENES = 100                    # Number of top genes to process
-MIN_AFFECTED_PERCENTAGE = 0.0        # Minimum affected percentage (0 = all mutations)
-OUTPUT_DIR = "Breast Cancer"         # Output directory
-```
-
 ## Usage
 
-### Run the full download
+### Basic Usage
 
+Download breast cancer data (default):
 ```bash
 uv run python main.py
 ```
 
-### Run a test with 3 genes
+### Download Different Cancer Types
 
+Download lung cancer data:
+```bash
+uv run python main.py --primary-site "Lung"
+```
+
+Download prostate cancer data:
+```bash
+uv run python main.py --primary-site "Prostate"
+```
+
+Download with custom output directory:
+```bash
+uv run python main.py --primary-site "Lung" --output-dir "Lung_Cancer_Data"
+```
+
+### Advanced Options
+
+Download top 50 genes instead of 100:
+```bash
+uv run python main.py --primary-site "Colon" --top-genes 50
+```
+
+Filter mutations with minimum affected percentage:
+```bash
+uv run python main.py --primary-site "Breast" --min-affected-pct 0.5
+```
+
+Combine multiple options:
+```bash
+uv run python main.py --primary-site "Pancreas" --output-dir "Pancreas_Data" --top-genes 75
+```
+
+### Available Options
+
+- `--primary-site` - Primary site to query (default: Breast)
+  - Examples: Breast, Lung, Prostate, Colon, Brain, Kidney, Liver, Pancreas, Ovary, Stomach, Skin, Bladder, Uterus
+  - See https://portal.gdc.cancer.gov/ for full list
+- `--output-dir` - Output directory (default: `<Primary Site> Cancer`)
+- `--top-genes` - Number of top genes to download (default: 100)
+- `--min-affected-pct` - Minimum affected percentage (default: 0.0)
+
+### Get Help
+
+```bash
+uv run python main.py --help
+```
+
+### Test Run (3 genes)
+
+Test with breast cancer (default):
 ```bash
 uv run python test_download.py
 ```
 
-### Resume interrupted download
+Test with a different cancer type:
+```bash
+uv run python test_download.py --primary-site "Lung"
+```
 
-The script automatically saves progress. Simply run the command again to resume from where it stopped.
+### Resume Interrupted Download
+
+The script automatically saves progress. Simply run the same command again to resume from where it stopped.
+
+## Configuration
+
+Default settings can be changed in `config.py`:
+
+```python
+PRIMARY_SITE = "Breast"              # Default primary site
+TOP_N_GENES = 100                    # Default number of top genes
+MIN_AFFECTED_PERCENTAGE = 0.0        # Default minimum affected percentage (0 = all mutations)
+OUTPUT_DIR = "Breast Cancer"         # Default output directory (overridden by --output-dir)
+```
+
+Command-line options will override these defaults.
 
 ## Output Format
 

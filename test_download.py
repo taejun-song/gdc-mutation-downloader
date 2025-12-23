@@ -1,4 +1,5 @@
 import sys
+import argparse
 from datetime import datetime
 from gdc_api_client import GDCApiClient
 from file_manager import FileManager
@@ -7,6 +8,25 @@ from utils import setup_logging
 from config import PRIMARY_SITE, MIN_AFFECTED_PERCENTAGE
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Test GDC mutation data downloader with 3 genes"
+    )
+    parser.add_argument(
+        "--primary-site",
+        default=PRIMARY_SITE,
+        help=f"Primary site to query (default: {PRIMARY_SITE})"
+    )
+    parser.add_argument(
+        "--output-dir",
+        default="Test_Output",
+        help="Output directory (default: Test_Output)"
+    )
+
+    args = parser.parse_args()
+
+    primary_site = args.primary_site
+    output_dir = args.output_dir
+
     logger = setup_logging()
     logger.info("=" * 60)
     logger.info("GDC Mutation Data Downloader - TEST MODE")
@@ -14,18 +34,19 @@ def main():
     logger.info("=" * 60)
 
     api_client = GDCApiClient()
-    file_manager = FileManager("Test_Output")
+    file_manager = FileManager(output_dir)
 
     try:
-        logger.info(f"Target: Primary site '{PRIMARY_SITE}'")
+        logger.info(f"Target: Primary site '{primary_site}'")
+        logger.info(f"Output directory: {output_dir}")
         logger.info("")
 
-        cohort_case_ids = api_client.get_open_access_maf_cohort_cases(PRIMARY_SITE)
+        cohort_case_ids = api_client.get_open_access_maf_cohort_cases(primary_site)
         total_cohort_cases = len(cohort_case_ids)
         logger.info("")
 
         logger.info(f"Fetching all genes with mutations in cohort...")
-        all_genes = api_client.get_all_mutated_genes_in_cohort(PRIMARY_SITE)
+        all_genes = api_client.get_all_mutated_genes_in_cohort(primary_site)
         logger.info(f"Retrieved {len(all_genes)} genes from aggregation")
         logger.info("")
 
@@ -44,7 +65,7 @@ def main():
 
             gene_id = gene_data["gene_id"]
 
-            cohort_gene_cases = api_client.get_gene_case_count(gene_id, PRIMARY_SITE, cohort_case_ids)
+            cohort_gene_cases = api_client.get_gene_case_count(gene_id, primary_site, cohort_case_ids)
             genes_with_counts.append({
                 "symbol": gene_symbol,
                 "gene_id": gene_id,
@@ -77,7 +98,7 @@ def main():
 
             mutations = api_client.get_gene_mutations(
                 gene_id=gene_id,
-                primary_site=PRIMARY_SITE,
+                primary_site=primary_site,
                 total_cases=total_cohort_cases,
                 min_affected_pct=MIN_AFFECTED_PERCENTAGE
             )
@@ -107,7 +128,7 @@ def main():
 
         logger.info("=" * 60)
         logger.info("Test complete!")
-        logger.info(f"Output file: Test_Output/{filename}")
+        logger.info(f"Output file: {output_dir}/{filename}")
         logger.info("=" * 60)
 
     except Exception as e:
