@@ -130,6 +130,48 @@ class GDCApiClient:
         self.logger.info(f"Found {len(case_ids)} cases with Open Access MAF files")
         return case_ids
 
+    def get_all_cancer_gene_census_genes(self):
+        """Get all genes in Cancer Gene Census"""
+        genes_url = f"{GDC_API_BASE}/genes"
+
+        all_genes = []
+        cgc_genes = []
+        from_offset = 0
+        page_size = 1000
+
+        self.logger.info(f"Fetching all genes and filtering by Cancer Gene Census...")
+
+        while True:
+            params = {
+                "fields": "gene_id,symbol,is_cancer_gene_census",
+                "size": page_size,
+                "from": from_offset
+            }
+
+            response = self._make_request(genes_url, params)
+            data = response.get("data", {})
+            hits = data.get("hits", [])
+
+            if not hits:
+                break
+
+            for gene in hits:
+                if gene.get("is_cancer_gene_census", False):
+                    cgc_genes.append({
+                        "gene_id": gene.get("gene_id"),
+                        "symbol": gene.get("symbol")
+                    })
+
+            pagination = data.get("pagination", {})
+            total = pagination.get("total", 0)
+            from_offset += page_size
+
+            if from_offset >= total:
+                break
+
+        self.logger.info(f"Retrieved {len(cgc_genes)} Cancer Gene Census genes (from {from_offset} total genes)")
+        return cgc_genes
+
     def get_all_mutated_genes_in_cohort(self, primary_site):
         """Get all genes with mutations in the cohort using aggregation"""
         ssm_occ_url = f"{GDC_API_BASE}/ssm_occurrences"

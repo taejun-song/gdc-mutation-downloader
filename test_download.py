@@ -45,27 +45,22 @@ def main():
         total_cohort_cases = len(cohort_case_ids)
         logger.info("")
 
-        logger.info(f"Fetching all genes with mutations in cohort...")
-        all_genes = api_client.get_all_mutated_genes_in_cohort(primary_site)
-        logger.info(f"Retrieved {len(all_genes)} genes from aggregation")
+        logger.info(f"Fetching all Cancer Gene Census genes...")
+        all_genes = api_client.get_all_cancer_gene_census_genes()
+        logger.info(f"Retrieved {len(all_genes)} Cancer Gene Census genes")
         logger.info("")
 
-        logger.info("Getting gene IDs for top 3 genes...")
+        logger.info("Getting top 3 genes by # SSM Affected Cases...")
         genes_with_counts = []
-        for gene in all_genes[:10]:
+        for gene in all_genes:
             gene_symbol = gene["symbol"].upper()
-
-            gene_data = api_client.get_gene_id_from_symbol(gene_symbol)
-            if not gene_data:
-                logger.warning(f"Could not find gene_id for {gene_symbol}, skipping")
-                continue
-
-            if not gene_data.get("is_cancer_gene_census", False):
-                continue
-
-            gene_id = gene_data["gene_id"]
+            gene_id = gene["gene_id"]
 
             cohort_gene_cases = api_client.get_gene_case_count(gene_id, primary_site, cohort_case_ids)
+
+            if cohort_gene_cases == 0:
+                continue
+
             genes_with_counts.append({
                 "symbol": gene_symbol,
                 "gene_id": gene_id,
