@@ -1,4 +1,5 @@
 import sys
+import os
 import json
 import argparse
 from datetime import datetime
@@ -8,6 +9,18 @@ from file_manager import FileManager
 from mutation_formatter import format_mutation_for_output
 from utils import setup_logging, save_progress, load_progress
 from config import TOP_N_GENES, MIN_AFFECTED_PERCENTAGE, CASES_ENDPOINT
+
+def get_downloaded_sites(base_dir="."):
+    """Get list of primary sites that have already been downloaded"""
+    downloaded = set()
+    for item in os.listdir(base_dir):
+        if item.endswith(" Cancer") and os.path.isdir(os.path.join(base_dir, item)):
+            dir_path = os.path.join(base_dir, item)
+            tsv_files = [f for f in os.listdir(dir_path) if f.endswith(".tsv")]
+            if tsv_files:
+                site_name = item.replace(" Cancer", "").replace("-", "/")
+                downloaded.add(site_name.lower())
+    return downloaded
 
 def get_all_primary_sites(api_client):
     """Get all available primary sites from GDC API"""
@@ -178,15 +191,26 @@ def main():
     parser.add_argument(
         "--min-cases",
         type=int,
-        default=100,
-        help="Minimum number of cases required for a cancer type (default: 100)"
+        default=0,
+        help="Minimum number of cases required for a cancer type (default: 0)"
     )
-
+    parser.add_argument(
+        "--skip-downloaded",
+        action="store_true",
+        default=True,
+        help="Skip already downloaded primary sites (default: True)"
+    )
+    parser.add_argument(
+        "--no-skip-downloaded",
+        action="store_true",
+        help="Re-download all primary sites including already downloaded ones"
+    )
     args = parser.parse_args()
 
     top_n_genes = args.top_genes
     min_affected_pct = args.min_affected_pct
     min_cases = args.min_cases
+    skip_downloaded = args.skip_downloaded and not args.no_skip_downloaded
 
     logger = setup_logging()
     logger.info("=" * 60)
@@ -196,12 +220,25 @@ def main():
     api_client = GDCApiClient()
 
     try:
+        downloaded_sites = set()
+        if skip_downloaded:
+            downloaded_sites = get_downloaded_sites()
+            if downloaded_sites:
+                logger.info(f"Found {len(downloaded_sites)} already downloaded sites (will skip)")
+
         logger.info("Fetching all primary sites from GDC API...")
         primary_sites = get_all_primary_sites(api_client)
         logger.info(f"Found {len(primary_sites)} primary sites")
         logger.info("")
 
         filtered_sites = [site for site in primary_sites if site["case_count"] >= min_cases]
+        if skip_downloaded:
+            before_skip = len(filtered_sites)
+            filtered_sites = [site for site in filtered_sites if site["site"].lower() not in downloaded_sites]
+            skipped_count = before_skip - len(filtered_sites)
+            if skipped_count > 0:
+                logger.info(f"Skipping {skipped_count} already downloaded sites")
+
         logger.info(f"Processing {len(filtered_sites)} sites with >= {min_cases} cases")
         logger.info("")
 
